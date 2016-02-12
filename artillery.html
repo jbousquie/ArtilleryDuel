@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+   <head>
+      <meta charset="utf-8">
+      <title>Artillery Duel</title>
+      <style>
+        html, body {
+          overflow: hidden;
+          width: 100%;
+          height: 100%;
+          margin: 0;
+          padding: 0;
+        }
+
+        #renderCanvas {
+          width: 100%;
+          height: 100%;
+          touch-action: none;
+        }
+    </style>
+    <script src="/BJS/Babylon.js/dist/preview release/babylon.max.js"></script>
+    <script src="hand.js"></script>
+    <script src="artillery.js"></script>
+   </head>
+   <body>
+    <canvas id="renderCanvas"></canvas>
+    <script>
+      window.onload = init;
+    </script>
+   </body>
+</html>
