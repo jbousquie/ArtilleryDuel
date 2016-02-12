@@ -1,1 +1,3 @@
-# ArtilleryDuel
+# Artillery Duel
+
+A BabylonJS game
