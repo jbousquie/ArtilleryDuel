@@ -17,25 +17,29 @@ scenes["level"] = function(canvas, engine) {
     groundTex.vScale = 30;
 
     // ground
-    var pathNb = 50;
-    var w = 60;
-    var paths = [];
-    var j = -pathNb / 2;
-    for (var p = 0; p < pathNb; p++) {
-        var path = []; 
-        var y = 0;  
-        for (var i = -w / 2; i < w / 2; i++) {
-            y = Math.sin((i * j) / 100) * Math.random() * Math.cos(i / 5) * 4;
-            path.push(new BABYLON.Vector3(i, y, j));
-        }
-        j++
-        paths.push(path);
-    }
-    var ground = BABYLON.MeshBuilder.CreateRibbon("gd",{pathArray: paths, sideOrientation: BABYLON.Mesh.BACKSIDE, updatable: true}, scene);
+    var groundSize = 40;
+    var sub = 60;
+    var ground = BABYLON.MeshBuilder.CreateGround("gd",{width: groundSize, height: groundSize, subdivisions: sub, updatable: true}, scene);
     var groundMat = new BABYLON.StandardMaterial("gm", scene);
-    //groundMat.wireframe = true;
+    groundMat.wireframe = true;
     groundMat.diffuseTexture = groundTex;
+    groundMat.specularColor = BABYLON.Color3.Black();
     ground.material = groundMat;
+    
+    var perlinSize = sub * groundSize;
+    var perlinOptions = {octaveCount: 4, amplitude: 0.6, persistence: 0.3};
+    var perlin = generatePerlinNoise(perlinSize, perlinSize, perlinOptions);
+    var amp = 2;                    // hill amplitude
+    var wave = perlinSize / 1.5;    // wave number
+    var waveHeight = 2.5;           // wave amplitude
+    var start = -Math.PI / 2;       // start angle (sin)
+    var perlinGround = function(positions) {
+        for (var idx = 0; idx < positions.length; idx +=3) {
+            positions[idx + 1] = perlin[idx] * amp + Math.sin(idx / wave + start) * waveHeight;
+        }  
+    };
+    ground.updateMeshPositions(perlinGround);
+    ground.updateCoordinateHeights();
  
  
     return scene;
