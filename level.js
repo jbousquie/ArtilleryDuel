@@ -137,13 +137,91 @@ ARTILLERY.generateCannon = function(id, size, color, position, angle, rotY,  sce
     return cannon;
 };
 
+ARTILLERY.bindControls = function(controls) {
+    // http://www.cambiaresearch.com/articles/15/javascript-key-codes
+    window.addEventListener("keydown", function(evt) {
+        // cannon1
+        if (evt.keyCode === 38) { //up arrow
+            controls[0].up = true;
+        }
+        if (evt.keyCode === 40) { //down arrow
+            controls[0].down = true;
+        }
+        if (evt.keyCode === 37) { //left arrow
+            controls[0].left = true;
+        }
+        if (evt.keyCode === 39) { //right arrow
+            controls[0].right = true;
+        }
+        if (evt.keyCode === 13) { //enter
+            controls[0].fire = true;
+        }
+        // cannon2
+        if (evt.keyCode === 82) { //R
+            controls[1].up = true;
+        }
+        if (evt.keyCode === 70) { //F
+            controls[1].down = true;
+        }
+        if (evt.keyCode === 88) { //X
+            controls[1].left = true;
+        }
+        if (evt.keyCode === 67) { //C
+            controls[1].right = true;
+        }
+        if (evt.keyCode === 9) { //TAB
+            controls[1].fire = true;
+        }
+    });  
+    window.addEventListener("keyup", function(evt) {
+        // cannon1
+        if (evt.keyCode === 38) { //up arrow
+            controls[0].up = false;
+        }
+        if (evt.keyCode === 40) { //down arrow
+            controls[0].down = false;
+        }
+        if (evt.keyCode === 37) { //left arrow
+            controls[0].left = false;
+        }
+        if (evt.keyCode === 39) { //right arrow
+            controls[0].right = false;
+        }
+        if (evt.keyCode === 13) { //enter
+            controls[0].fire = false;
+        }
+        // cannon2
+        if (evt.keyCode === 82) { //R
+            controls[1].up = false;
+        }
+        if (evt.keyCode === 70) { //F
+            controls[1].down = false;
+        }
+        if (evt.keyCode === 88) { //X
+            controls[1].left = false;
+        }
+        if (evt.keyCode === 67) { //C
+            controls[1].right = false;
+        }
+        if (evt.keyCode === 9) { //TAB
+            controls[1].fire = false;
+        }
+    });
+};
+
+// control[0] == cannon1, controls[1] == cannon2
+ARTILLERY.controls = [
+    {up: false, down: false, left: false, right: false, fire: false}, 
+    {up: false, down: false, left: false, right: false, fire: false}
+    ];
+
 ARTILLERY.scenes["level"] = function(canvas, engine) {
     // Scene and camera
     var scene = new BABYLON.Scene(engine);
     scene.clearColor = new BABYLON.Color3( .3, .5, .9);
     var camera = new BABYLON.ArcRotateCamera("camera1",  0, 0, 0, new BABYLON.Vector3(0, 0, -0), scene);
-    camera.setPosition(new BABYLON.Vector3(0, 10, 40));
-    camera.attachControl(canvas, true);
+    camera.setPosition(new BABYLON.Vector3(0, 15, 30));
+    //camera.attachControl(canvas, true);
 
     // Lights
     var light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
@@ -172,8 +250,32 @@ ARTILLERY.scenes["level"] = function(canvas, engine) {
     z = -groundSize / 6 * Math.random() - groundSize / 10 + groundSize / 2; 
     y = landscape.ground.getHeightAtCoordinates(x, z) + cannonSize / 2;
     var pos2 = new BABYLON.Vector3(x, y, z);
-    var cannon2 = ARTILLERY.generateCannon("1", cannonSize, BABYLON.Color3.Red(), pos2, -Math.PI / 5, Math.PI, scene);    
+    var cannon2 = ARTILLERY.generateCannon("1", cannonSize, BABYLON.Color3.Red(), pos2, -Math.PI / 5, Math.PI, scene);  
     
+    var cannons = [cannon1, cannon2];  
+    
+    ARTILLERY.bindControls(ARTILLERY.controls);
+    
+    var deltaX = 0.01;
+    var deltaY = 0.01;
     //scene.debugLayer.show();
+    scene.registerBeforeRender(function() {
+
+        for (var c = 0; c < 2; c ++) {
+            if (ARTILLERY.controls[c].up) {
+                cannons[c].rotation.x -= deltaX;
+            } else if (ARTILLERY.controls[c].down) {
+                cannons[c].rotation.x += deltaX;
+            }
+            if (ARTILLERY.controls[c].left) {
+                cannons[c].rotation.y -= deltaY;
+            } else if (ARTILLERY.controls[c].right) {
+                cannons[c].rotation.y += deltaY;
+            }            
+        }
+        
+       camera.alpha += 0.001; 
+    });
+    
     return scene;
 };
