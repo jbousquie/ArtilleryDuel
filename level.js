@@ -4,14 +4,12 @@
 var ARTILLERY = ARTILLERY || {};
 ARTILLERY.scenes = ARTILLERY.scenes || {};
 
-ARTILLERY.generateLandscape = function(scene) {
+ARTILLERY.generateLandscape = function(groundSize, sub, scene) {
     var groundTex = new BABYLON.Texture("images/ground.jpg", scene);
     groundTex.uScale = 30;
     groundTex.vScale = 30;
 
     // ground
-    var groundSize = 40;
-    var sub = 60;
     var ground = BABYLON.MeshBuilder.CreateGround("gd",{width: groundSize, height: groundSize, subdivisions: sub, updatable: true}, scene);
     var groundMat = new BABYLON.StandardMaterial("gm", scene);
     //groundMat.wireframe = true;
@@ -52,10 +50,7 @@ ARTILLERY.generateLandscape = function(scene) {
     ground.updateMeshPositions(perlinGround);
     ground.updateCoordinateHeights();
 
-
-    // add a ribbon around the ground and a plane underneath
-    // or a single ribbon covering the bottom
-    // get back the ground positions first
+    // add a ribbon around the ground
     var paths = [];
     var subSize = groundSize / sub;
     var x = 0.0;
@@ -115,7 +110,7 @@ ARTILLERY.generateLandscape = function(scene) {
     path.push(new BABYLON.Vector3(x, y, z)); // last extra point to match with the edge band
     paths.push(path);
     
-    var groundRibbon = BABYLON.MeshBuilder.CreateRibbon("gr", {pathArray: paths, sideOrientation: BABYLON.Mesh.BACKSIDE}, scene);
+    var groundRibbon = BABYLON.MeshBuilder.CreateRibbon("gr", {pathArray: paths, sideOrientation: BABYLON.Mesh.BACKSIDE, updatable: true}, scene);
     var groundRibbonMat = new BABYLON.StandardMaterial('grm', scene);
     groundRibbonMat.diffuseColor = BABYLON.Color3.Green();
     //groundRibbonMat.wireframe = true;
@@ -128,24 +123,57 @@ ARTILLERY.generateLandscape = function(scene) {
     return landscape;
 };
 
+ARTILLERY.generateCannon = function(id, size, color, position, angle, rotY,  scene) {
+    var path = [new BABYLON.Vector3(0, 0, -size /2), new BABYLON.Vector3(0, 0, size / 2)];
+    var cannon = BABYLON.MeshBuilder.CreateTube("c"+id, {path: path, radius: size / 8, tessellation: 16, cap: BABYLON.Mesh._CAP_START}, scene);
+    cannon.position = position;
+    cannon.rotation.x = angle;
+    cannon.rotation.y = rotY;
+    var cannonMat = new BABYLON.StandardMaterial("cm"+id, scene);
+    cannonMat.diffuseColor = color;
+    cannonMat.backFaceCulling = false;
+    cannonMat.freeze();
+    cannon.material = cannonMat;
+    return cannon;
+};
+
 ARTILLERY.scenes["level"] = function(canvas, engine) {
     // Scene and camera
     var scene = new BABYLON.Scene(engine);
     scene.clearColor = new BABYLON.Color3( .3, .5, .9);
     var camera = new BABYLON.ArcRotateCamera("camera1",  0, 0, 0, new BABYLON.Vector3(0, 0, -0), scene);
-    camera.setPosition(new BABYLON.Vector3(0, 10, -40));
+    camera.setPosition(new BABYLON.Vector3(0, 10, 40));
     camera.attachControl(canvas, true);
 
     // Lights
     var light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
     light.groundColor = new BABYLON.Color3(0.5, 0.5, 0.5);
     light.intensity = 0.8;
-    
-    var landscape = ARTILLERY.generateLandscape(scene);
-    
 
-
- 
+    // landscape
+    var groundSize = 40;
+    var subdivisions = 30;
+    var landscape = ARTILLERY.generateLandscape(groundSize, subdivisions, scene);
+    
+    // Cannons
+    var cannonSize = 0;
+    var x = 0.0;
+    var y = 0.0;
+    var z = 0.0;
+    cannonSize = 1; 
+   
+    x = groundSize / 6 * Math.random() + groundSize / 10 - groundSize / 2;
+    z = groundSize / 6 * Math.random() + groundSize / 10 - groundSize / 2; 
+    y = landscape.ground.getHeightAtCoordinates(x, z) + cannonSize / 2;
+    var pos1 = new BABYLON.Vector3(x, y, z);
+    var cannon1 = ARTILLERY.generateCannon("1", cannonSize, BABYLON.Color3.Blue(), pos1, -Math.PI / 5, 0, scene);
+   
+    x = -groundSize / 6 * Math.random() - groundSize / 10 + groundSize / 2;
+    z = -groundSize / 6 * Math.random() - groundSize / 10 + groundSize / 2; 
+    y = landscape.ground.getHeightAtCoordinates(x, z) + cannonSize / 2;
+    var pos2 = new BABYLON.Vector3(x, y, z);
+    var cannon2 = ARTILLERY.generateCannon("1", cannonSize, BABYLON.Color3.Red(), pos2, -Math.PI / 5, Math.PI, scene);    
+    
     //scene.debugLayer.show();
     return scene;
 };
