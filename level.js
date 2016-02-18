@@ -1,26 +1,17 @@
 /// <reference path='./babylon.d.ts' />
+"use strict";
 
-var scenes = scenes || {};
-scenes["level"] = function(canvas, engine) {
-    // Scene and camera
-    var scene = new BABYLON.Scene(engine);
-    scene.clearColor = new BABYLON.Color3( .3, .5, .9);
-    var camera = new BABYLON.ArcRotateCamera("camera1",  0, 0, 0, new BABYLON.Vector3(0, 0, -0), scene);
-    camera.setPosition(new BABYLON.Vector3(0, 10, -40));
-    camera.attachControl(canvas, true);
+var ARTILLERY = ARTILLERY || {};
+ARTILLERY.scenes = ARTILLERY.scenes || {};
 
-    // Lights
-    var light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
-    light.groundColor = new BABYLON.Color3(0.5, 0.5, 0.5);
-    light.intensity = 0.8;
-    
+ARTILLERY.generateLandscape = function(scene) {
     var groundTex = new BABYLON.Texture("images/ground.jpg", scene);
     groundTex.uScale = 30;
     groundTex.vScale = 30;
 
     // ground
     var groundSize = 40;
-    var sub = 5;
+    var sub = 60;
     var ground = BABYLON.MeshBuilder.CreateGround("gd",{width: groundSize, height: groundSize, subdivisions: sub, updatable: true}, scene);
     var groundMat = new BABYLON.StandardMaterial("gm", scene);
     //groundMat.wireframe = true;
@@ -131,7 +122,28 @@ scenes["level"] = function(canvas, engine) {
     groundRibbonMat.alpha = 0.4;
     groundRibbonMat.backFaceCulling = false;
     groundRibbonMat.freeze();
-    groundRibbon.material = groundRibbonMat;
+    groundRibbon.material = groundRibbonMat;  
+    
+    var landscape = {ground: ground, ribbon: groundRibbon};
+    return landscape;
+};
+
+ARTILLERY.scenes["level"] = function(canvas, engine) {
+    // Scene and camera
+    var scene = new BABYLON.Scene(engine);
+    scene.clearColor = new BABYLON.Color3( .3, .5, .9);
+    var camera = new BABYLON.ArcRotateCamera("camera1",  0, 0, 0, new BABYLON.Vector3(0, 0, -0), scene);
+    camera.setPosition(new BABYLON.Vector3(0, 10, -40));
+    camera.attachControl(canvas, true);
+
+    // Lights
+    var light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
+    light.groundColor = new BABYLON.Color3(0.5, 0.5, 0.5);
+    light.intensity = 0.8;
+    
+    var landscape = ARTILLERY.generateLandscape(scene);
+    
+
 
  
     //scene.debugLayer.show();
