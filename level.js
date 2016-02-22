@@ -5,7 +5,7 @@ var ARTILLERY = ARTILLERY || {};
 
 // Artillery properties
 ARTILLERY.scenes = ARTILLERY.scenes || {};
-ARTILLERY.gravity = 1;
+ARTILLERY.gravity = 9.81;
 ARTILLERY.controls = [
     {up: false, down: false, left: false, right: false, fire: false}, 
     {up: false, down: false, left: false, right: false, fire: false}
@@ -14,8 +14,8 @@ ARTILLERY.controls = [
 // Artillery functions
 ARTILLERY.generateLandscape = function(groundSize, sub, scene) {
     var groundTex = new BABYLON.Texture("images/ground.jpg", scene);
-    groundTex.uScale = 30;
-    groundTex.vScale = 30;
+    groundTex.uScale = 4;
+    groundTex.vScale = 4;
 
     // ground
     var ground = BABYLON.MeshBuilder.CreateGround("gd",{width: groundSize, height: groundSize, subdivisions: sub, updatable: true}, scene);
@@ -144,11 +144,13 @@ ARTILLERY.generateCannon = function(id, size, color, position, angle, rotY,  sce
     cannonMat.freeze();
     cannon.material = cannonMat;
     // artillery properties
-    cannon.caliber = caliber;       // cannon caliber
-    cannon.capacity = 3;            // max load of bullets
-    cannon.nextBullet = 0;          // index of next (un-fired) bullet
-    cannon.bullets = [];            // bullet array
-    cannon.temperature = 0;         // cannon temperature
+    cannon.size = size;                         // cannon size
+    cannon.muzzle = BABYLON.Vector3.Zero();     // muzzzle coordinates
+    cannon.caliber = caliber;                   // cannon caliber
+    cannon.capacity = 3;                        // max load of bullets
+    cannon.nextBullet = 0;                      // index of next (un-fired) bullet
+    cannon.bullets = [];                        // bullet array
+    cannon.temperature = 0;                     // cannon temperature
     cannon.limitTemperature = 100;
     return cannon;
 };
@@ -161,7 +163,7 @@ ARTILLERY.generateBullet = function(id, cannon, scene) {
     bullet.cannon = cannon;                 // reference to the cannon it belongs to
     bullet.fired = false;                   // if the bullet is fired
     bullet.warming = 50;                    // how much the bullets warms the cannon when fired
-    bullet.speed = 2;                     // bullet speed
+    bullet.speed = 15;                       // bullet speed
     bullet.dateFired = 0.0;                 // timestamp on fire
     bullet.velocity = BABYLON.Vector3.Zero(); // initial velocity vector 
     cannon.bullets.push(bullet);            // load the bullet into the cannon
@@ -169,13 +171,13 @@ ARTILLERY.generateBullet = function(id, cannon, scene) {
 };
 
 
-ARTILLERY.bulletBalistic = function(bullet, ground) {
+ARTILLERY.bulletBallistics = function(bullet, ground) {
     
     var k = (Date.now() - bullet.dateFired) / 1000;
 
-    bullet.position.x = k * bullet.velocity.x + bullet.cannon.position.x;        //  x = vx * t + x0
-    bullet.position.z = k * bullet.velocity.z + bullet.cannon.position.z;        //  z = vz * t + z0
-    bullet.position.y = -k * k * ARTILLERY.gravity * 0.5 + k * bullet.velocity.y + bullet.cannon.position.y;     // y = -g * t² / 2 + vy * t + y0
+    bullet.position.x = k * bullet.velocity.x + bullet.cannon.muzzle.x;        //  x = vx * t + x0
+    bullet.position.z = k * bullet.velocity.z + bullet.cannon.muzzle.z;        //  z = vz * t + z0
+    bullet.position.y = -k * k * ARTILLERY.gravity * 0.5 + k * bullet.velocity.y + bullet.cannon.muzzle.y;     // y = -g * t² / 2 + vy * t + y0
     if ( bullet.position.y <= ground.getHeightAtCoordinates(bullet.position.x, bullet.position.z) ) {
         bullet.fired = false;
         bullet.position.copyFrom(bullet.cannon.position);
@@ -285,14 +287,14 @@ ARTILLERY.scenes["level"] = function(canvas, engine) {
     var z = 0.0;
     cannonSize = 1; 
    
-    x = groundSize / 6 * Math.random() + groundSize / 10 - groundSize / 2;
-    z = groundSize / 6 * Math.random() + groundSize / 10 - groundSize / 2; 
+    x = groundSize / 6 * Math.random() + groundSize / 5 - groundSize / 2;
+    z = groundSize / 6 * Math.random() + groundSize / 5 - groundSize / 2; 
     y = landscape.ground.getHeightAtCoordinates(x, z) + cannonSize / 2;
     var pos1 = new BABYLON.Vector3(x, y, z);
     var cannon1 = ARTILLERY.generateCannon("cannon1", cannonSize, BABYLON.Color3.Blue(), pos1, -Math.PI / 5, 0, scene);
    
-    x = -groundSize / 6 * Math.random() - groundSize / 10 + groundSize / 2;
-    z = -groundSize / 6 * Math.random() - groundSize / 10 + groundSize / 2; 
+    x = -groundSize / 6 * Math.random() - groundSize / 5 + groundSize / 2;
+    z = -groundSize / 6 * Math.random() - groundSize / 5 + groundSize / 2; 
     y = landscape.ground.getHeightAtCoordinates(x, z) + cannonSize / 2;
     var pos2 = new BABYLON.Vector3(x, y, z);
     var cannon2 = ARTILLERY.generateCannon("cannon2", cannonSize, BABYLON.Color3.Red(), pos2, -Math.PI / 5, Math.PI, scene);  
@@ -340,10 +342,13 @@ ARTILLERY.scenes["level"] = function(canvas, engine) {
                 if (loadedBullet) {     // if the cannon has still an avalaible bullet
                     loadedBullet.fired = true;
                     loadedBullet.dateFired = Date.now();
-                    var vx = Math.cos(cannons[c].rotation.y) * loadedBullet.speed;
-                    var vy = Math.sin(cannons[c].rotation.x) * loadedBullet.speed;
+                    cannons[c].muzzle.x = Math.sin(cannons[c].rotation.y) * cannons[c].size / 2 + cannons[c].position.x;
+                    cannons[c].muzzle.y = Math.cos(cannons[c].rotation.x) * cannons[c].size / 2 + cannons[c].position.y;
+                    cannons[c].muzzle.z = Math.cos(cannons[c].rotation.y) * cannons[c].size / 2 + cannons[c].position.z;
                     var vx = Math.sin(cannons[c].rotation.y) * loadedBullet.speed;
-                    loadedBullet.velocity.copyFromFloats(x, y, z);
+                    var vy = Math.cos(cannons[c].rotation.x) * loadedBullet.speed;
+                    var vz = Math.cos(cannons[c].rotation.y) * loadedBullet.speed;
+                    loadedBullet.velocity.copyFromFloats(vx, vy, vz);
                     cannons[c].temperature += loadedBullet.warming;
                     cannons[c].nextBullet ++;
                     cannons[c].nextBullet = (cannons[c].nextBullet < cannons[c].capacity) ? cannons[c].nextBullet : -1;
@@ -355,7 +360,7 @@ ARTILLERY.scenes["level"] = function(canvas, engine) {
         for (var b = 0; b < bullets.length; b++) {
             var bullet = bullets[b];
             if (bullet.fired) {
-                ARTILLERY.bulletBalistic(bullet, landscape.ground);
+                ARTILLERY.bulletBallistics(bullet, landscape.ground);
             }
         }
         
