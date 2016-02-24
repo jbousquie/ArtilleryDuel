@@ -37,19 +37,19 @@ ARTILLERY.bindCannonControls = function(controls) {
             controls[0].fire = true;
         }
         // cannon2
-        if (evt.keyCode === 82) { //R
+        if (evt.keyCode === 90 || evt.keyCode == 87) { //Z or W
             controls[1].up = true;
         }
-        if (evt.keyCode === 70) { //F
+        if (evt.keyCode === 88) { //S
             controls[1].down = true;
         }
-        if (evt.keyCode === 88) { //X
+        if (evt.keyCode === 65 || evt.keyCode == 81) { //A or Q
             controls[1].left = true;
         }
-        if (evt.keyCode === 67) { //C
+        if (evt.keyCode === 68) { //D
             controls[1].right = true;
         }
-        if (evt.keyCode === 86) { //V
+        if (evt.keyCode === 16) { //SHIFT
             controls[1].fire = true;
         }
     });  
@@ -71,19 +71,19 @@ ARTILLERY.bindCannonControls = function(controls) {
             controls[0].fire = false;
         }
         // cannon2
-        if (evt.keyCode === 82) { //R
+        if (evt.keyCode === 90 || evt.keyCode == 87) { //Z or W
             controls[1].up = false;
         }
-        if (evt.keyCode === 70) { //F
+        if (evt.keyCode === 88) { //S
             controls[1].down = false;
         }
-        if (evt.keyCode === 88) { //X
+        if (evt.keyCode === 65 || evt.keyCode == 81) { //A or Q
             controls[1].left = false;
         }
-        if (evt.keyCode === 67) { //C
+        if (evt.keyCode === 68) { //D
             controls[1].right = false;
         }
-        if (evt.keyCode === 86) { //V
+        if (evt.keyCode === 16) { //SHIFT
             controls[1].fire = false;
         }
     });
