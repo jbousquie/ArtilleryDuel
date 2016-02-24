@@ -17,6 +17,11 @@ ARTILLERY.init = function() {
   });
 };
 
+// Controls
+ARTILLERY.controls = [
+    {up: false, down: false, left: false, right: false, fire: false}, 
+    {up: false, down: false, left: false, right: false, fire: false}
+];
 ARTILLERY.bindCannonControls = function(controls) {
     // http://www.cambiaresearch.com/articles/15/javascript-key-codes
     window.addEventListener("keydown", function(evt) {
@@ -40,7 +45,7 @@ ARTILLERY.bindCannonControls = function(controls) {
         if (evt.keyCode === 90 || evt.keyCode == 87) { //Z or W
             controls[1].up = true;
         }
-        if (evt.keyCode === 88) { //S
+        if (evt.keyCode === 88) { //X
             controls[1].down = true;
         }
         if (evt.keyCode === 65 || evt.keyCode == 81) { //A or Q
@@ -74,7 +79,7 @@ ARTILLERY.bindCannonControls = function(controls) {
         if (evt.keyCode === 90 || evt.keyCode == 87) { //Z or W
             controls[1].up = false;
         }
-        if (evt.keyCode === 88) { //S
+        if (evt.keyCode === 88) { //X
             controls[1].down = false;
         }
         if (evt.keyCode === 65 || evt.keyCode == 81) { //A or Q

@@ -6,10 +6,8 @@ var ARTILLERY = ARTILLERY || {};
 // Artillery properties
 ARTILLERY.scenes = ARTILLERY.scenes || {};
 ARTILLERY.gravity = 9.81;
-ARTILLERY.controls = [
-    {up: false, down: false, left: false, right: false, fire: false}, 
-    {up: false, down: false, left: false, right: false, fire: false}
-];
+ARTILLERY.airFriction = 0.997;
+
 
 // Artillery functions
 ARTILLERY.generateLandscape = function(groundSize, sub, scene) {
@@ -58,79 +56,7 @@ ARTILLERY.generateLandscape = function(groundSize, sub, scene) {
     ground.updateMeshPositions(perlinGround);
     ground.updateCoordinateHeights();
 
-    /*
-    // add a ribbon around the ground
-    var paths = [];
-    var subSize = groundSize / sub;
-    var x = 0.0;
-    var y = -10.0;
-    var z = groundSize / 2;
-    var e = 0;          // side edge index
-    var p = 0;          // front/back border index
-    var path;
-    // ribbon front band
-    path = [];
-    path.push(new BABYLON.Vector3(-groundSize / 2, y, z)); // first extra point to match with the edge band
-    for (p = 0; p <= sub; p++) {
-        x = subSize * p - groundSize / 2;
-        path.push(new BABYLON.Vector3(x, borderHeights[p], z));
-    }
-    path.push(new BABYLON.Vector3(x, y, z)); // last extra point to match with the edge band
-    paths.push(path);
-    path = [];
-    path.push(new BABYLON.Vector3(-groundSize / 2, y, z)); // first extra point to match with the edge band
-    for (p = 0; p <= sub; p++) {
-        x = subSize * p - groundSize / 2;
-        path.push(new BABYLON.Vector3(x, y, z));
-    }
-    path.push(new BABYLON.Vector3(x, y, z)); // last extra point to match with the edge band
-    paths.push(path);
-    // ribbon side edges and bottom
-    for (e = 0; e <= sub; e++) {
-        path = []
-        z = -e * subSize + groundSize / 2;
-        path.push(new BABYLON.Vector3(-groundSize / 2, edgeHeights[e * 2], z));
-        path.push(new BABYLON.Vector3(-groundSize / 2, y, z));
-        for (p = 0; p < sub; p ++) {
-            x = subSize * p - groundSize / 2;
-            path.push(new BABYLON.Vector3(x, y, z));
-        }
-        path.push(new BABYLON.Vector3(groundSize / 2, y, z));
-        path.push(new BABYLON.Vector3(groundSize / 2, edgeHeights[e * 2 + 1], z));
-
-        paths.push(path);
-    }
-    // ribbon back band
-    z = -groundSize / 2;
-    path = [];
-    path.push(new BABYLON.Vector3(-groundSize / 2, y, z)); // first extra point to match with the edge band
-    for (p = 0; p <= sub; p++) {
-        x = subSize * p - groundSize / 2;
-        path.push(new BABYLON.Vector3(x, y, z));
-    }
-    path.push(new BABYLON.Vector3(x, y, z)); // last extra point to match with the edge band
-    paths.push(path);
-    path = [];
-    path.push(new BABYLON.Vector3(-groundSize / 2, y, z)); // first extra point to match with the edge band
-    for (p = 0; p <= sub; p++) {
-        x = subSize * p - groundSize / 2;
-        path.push(new BABYLON.Vector3(x, borderHeights[p + sub + 1], z));
-    }
-    path.push(new BABYLON.Vector3(x, y, z)); // last extra point to match with the edge band
-    paths.push(path);
-    
-    
-    var groundRibbon = BABYLON.MeshBuilder.CreateRibbon("gr", {pathArray: paths, sideOrientation: BABYLON.Mesh.BACKSIDE, updatable: true}, scene);
-    var groundRibbonMat = new BABYLON.StandardMaterial('grm', scene);
-    groundRibbonMat.diffuseColor = BABYLON.Color3.Green();
-    //groundRibbonMat.wireframe = true;
-    groundRibbonMat.alpha = 0.4;
-    groundRibbonMat.backFaceCulling = false;
-    groundRibbonMat.freeze();
-    groundRibbon.material = groundRibbonMat;
-    */  
-    var groundRibbon;
-    var landscape = {ground: ground, ribbon: groundRibbon};
+    var landscape = {ground: ground};
     return landscape;
 };
 
@@ -144,7 +70,7 @@ ARTILLERY.generateCannon = function(id, size, color, position, angle, rotY,  sce
     var cannonMat = new BABYLON.StandardMaterial("mat-"+id, scene);
     cannonMat.diffuseColor = color;
     cannonMat.backFaceCulling = false;
-    cannonMat.freeze();
+    //cannonMat.freeze();
     cannon.material = cannonMat;
     // artillery properties
     cannon.size = size;                         // cannon size
@@ -164,25 +90,72 @@ ARTILLERY.generateBullet = function(id, cannon, scene) {
     bullet.material = cannon.material;
     bullet.position.copyFrom(cannon.muzzle);
     // artillery properties
+    bullet.caliber = cannon.caliber;
     bullet.cannon = cannon;                 // reference to the cannon it belongs to
     bullet.fired = false;                   // if the bullet is fired
-    bullet.heating = 50;                    // how much the bullets warms the cannon when fired
-    bullet.speed = 30;                       // bullet speed
+    bullet.blowing = false;                 // if the bullet is exploding
+    bullet.heating = 60;                    // how much the bullets warms the cannon when fired
+    bullet.speed = 30;                      // bullet speed
+    bullet.fragments = 30;                  // how many fragments when explode
     bullet.dateFired = 0.0;                 // timestamp on fire
     bullet.velocity = BABYLON.Vector3.Zero(); // initial velocity vector 
+    bullet.boom = ARTILLERY.generateExplosion('boom-'+id.toString, bullet, scene); 
     cannon.bullets.push(bullet);            // load the bullet into the cannon
     return bullet;
 };
 
+ARTILLERY.generateExplosion = function(id, bullet, scene) {
+    var sps = new BABYLON.SolidParticleSystem(id, scene);
+    var model = BABYLON.MeshBuilder.CreatePolyhedron('p', {}, scene);
+    sps.addShape(model, bullet.fragments);
+    model.dispose();
+    sps.buildMesh();
+    sps.mesh.material = bullet.material;
+    sps.mesh.isVisible = false;
+    sps.bullet = bullet;                    //reference to the bullet
+    
+    // explosion logic
+    sps.counter = 0;
+    sps.vars.minY = 0.0;
+    sps.updateParticle = function(p) {
+      sps.vars.minY = ARTILLERY.ground.getHeightAtCoordinates(p.position.x, p.position.z);
+      if (p.position.y < sps.vars.minY) {
+          p.velocity.y = 0;
+          p.position.y = sps.vars.minY;
+          sps.counter ++;
+          if (sps.counter == sps.nbParticles) {
+              sps.counter = 0;
+              sps.mesh.isVisible = false;
+              sps.bullet.blowing = false;
+          }
+      }
+      p.velocity.y -= ARTILLERY.gravity;
+      p.position.addInPlace(p.velocity);
+      p.rotation.x += p.velocity.z * p.deltaRot;
+      p.rotation.y += p.velocity.x * p.deltaRot;
+      p.rotation.z += p.velocity.y * p.deltaRot;  
+    };
+    return sps;
+};
 
 ARTILLERY.bulletBallistics = function(bullet, ground) {
     
+    // move bullet    
     var k = (Date.now() - bullet.dateFired) / 1000;
-
+    bullet.velocity.scaleInPlace(ARTILLERY.airFriction);
     bullet.position.x = k * bullet.velocity.x + bullet.cannon.muzzle.x;        //  x = vx * t + x0
     bullet.position.z = k * bullet.velocity.z + bullet.cannon.muzzle.z;        //  z = vz * t + z0
     bullet.position.y = -k * k * ARTILLERY.gravity * 0.5 + k * bullet.velocity.y + bullet.cannon.muzzle.y;     // y = -g * t² / 2 + vy * t + y0
-    if ( bullet.position.y <= ground.getHeightAtCoordinates(bullet.position.x, bullet.position.z) ) {
+    
+    // ground collision test
+    var y = ground.getHeightAtCoordinates(bullet.position.x, bullet.position.z);
+    if ( bullet.position.y <= y ) {
+   
+        // trigger an explosion
+        bullet.blowing = true;
+        ARTILLERY.explose(bullet, y, ground.getNormalAtCoordinates(bullet.position.x, bullet.position.z));   
+        
+        // recycle bullet : reload the cannon
         bullet.fired = false;
         bullet.position.copyFrom(bullet.cannon.muzzle);
         bullet.cannon.nextBullet --;
@@ -190,6 +163,21 @@ ARTILLERY.bulletBallistics = function(bullet, ground) {
     } 
 };
 
+ARTILLERY.explose = function(bullet, y, normal) {
+    // fragment initial size, velocity and rotation
+    var boom = bullet.boom.particles;
+    bullet.boom.mesh.isVisible = true;
+    for (var p = 0; p < bullet.boom.nbParticles; p++) {
+        boom[p].velocity.x = (0.5 - Math.random()) * 10;
+        boom[p].velocity.z = (0.5 - Math.random()) * 10;
+        boom[p].velocity.y = Math.random() * 20;
+        boom[p].rotation.x = 2 * Math.PI * Math.random();
+        boom[p].rotation.y = 2 * Math.PI * Math.random();
+        boom[p].rotation.z = 2 * Math.PI * Math.random();
+        boom[p].deltaRot = Math.random() / 100;
+        boom[p].scale.scaleInPlace(Math.random() * bullet.caliber);
+    }
+};
 
 // Level logic
 ARTILLERY.scenes["level"] = function(canvas, engine) {
@@ -219,6 +207,7 @@ ARTILLERY.scenes["level"] = function(canvas, engine) {
     var groundSize = 40;
     var subdivisions = 30;
     var landscape = ARTILLERY.generateLandscape(groundSize, subdivisions, scene);
+    ARTILLERY.ground = landscape.ground;
     
     // Cannons
     var cannonSize = 0;
@@ -317,6 +306,9 @@ ARTILLERY.scenes["level"] = function(canvas, engine) {
         // animate bullets
         for (var b = 0; b < bullets.length; b++) {
             var bullet = bullets[b];
+            if (bullet.blowing) {
+                bullet.boom.setParticles();
+            } else
             if (bullet.fired) {
                 ARTILLERY.bulletBallistics(bullet, landscape.ground);
             } else {
