@@ -16,3 +16,75 @@ ARTILLERY.init = function() {
     scene.render();
   });
 };
+
+ARTILLERY.bindCannonControls = function(controls) {
+    // http://www.cambiaresearch.com/articles/15/javascript-key-codes
+    window.addEventListener("keydown", function(evt) {
+        // cannon1
+        if (evt.keyCode === 104) { //numpad up arrow
+            controls[0].up = true;
+        }
+        if (evt.keyCode === 98) { //numpad down arrow
+            controls[0].down = true;
+        }
+        if (evt.keyCode === 100) { //numpad left arrow
+            controls[0].left = true;
+        }
+        if (evt.keyCode === 102) { //numpad right arrow
+            controls[0].right = true;
+        }
+        if (evt.keyCode === 13) { //enter
+            controls[0].fire = true;
+        }
+        // cannon2
+        if (evt.keyCode === 82) { //R
+            controls[1].up = true;
+        }
+        if (evt.keyCode === 70) { //F
+            controls[1].down = true;
+        }
+        if (evt.keyCode === 88) { //X
+            controls[1].left = true;
+        }
+        if (evt.keyCode === 67) { //C
+            controls[1].right = true;
+        }
+        if (evt.keyCode === 86) { //V
+            controls[1].fire = true;
+        }
+    });  
+    window.addEventListener("keyup", function(evt) {
+        // cannon1
+        if (evt.keyCode === 104) { //numpad up arrow
+            controls[0].up = false;
+        }
+        if (evt.keyCode === 98) { //numpad down arrow
+            controls[0].down = false;
+        }
+        if (evt.keyCode === 100) { //numpad left arrow
+            controls[0].left = false;
+        }
+        if (evt.keyCode === 102) { //numpad right arrow
+            controls[0].right = false;
+        }
+        if (evt.keyCode === 13) { //numpad enter
+            controls[0].fire = false;
+        }
+        // cannon2
+        if (evt.keyCode === 82) { //R
+            controls[1].up = false;
+        }
+        if (evt.keyCode === 70) { //F
+            controls[1].down = false;
+        }
+        if (evt.keyCode === 88) { //X
+            controls[1].left = false;
+        }
+        if (evt.keyCode === 67) { //C
+            controls[1].right = false;
+        }
+        if (evt.keyCode === 86) { //V
+            controls[1].fire = false;
+        }
+    });
+};
