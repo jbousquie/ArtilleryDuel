@@ -98,8 +98,9 @@ ARTILLERY.generateBullet = function(id, cannon, scene) {
     bullet.speed = 30;                      // bullet speed
     bullet.fragments = 30;                  // how many fragments when explode
     bullet.dateFired = 0.0;                 // timestamp on fire
+    bullet.dateBoom = 0.0;                  // timestamp on explode
     bullet.velocity = BABYLON.Vector3.Zero(); // initial velocity vector 
-    bullet.boom = ARTILLERY.generateExplosion('boom-'+id.toString, bullet, scene); 
+    bullet.explosion = ARTILLERY.generateExplosion('boom-'+id.toString, bullet, scene); 
     cannon.bullets.push(bullet);            // load the bullet into the cannon
     return bullet;
 };
@@ -112,28 +113,42 @@ ARTILLERY.generateExplosion = function(id, bullet, scene) {
     sps.buildMesh();
     sps.mesh.material = bullet.material;
     sps.mesh.isVisible = false;
+    sps.computeBoundingBox = true;
     sps.bullet = bullet;                    //reference to the bullet
     
     // explosion logic
     sps.counter = 0;
     sps.vars.minY = 0.0;
+    sps.vars.k = 0.0;
+    sps.vars.pWorld = BABYLON.Vector3.Zero();   // particle world position
     sps.updateParticle = function(p) {
-      sps.vars.minY = ARTILLERY.ground.getHeightAtCoordinates(p.position.x, p.position.z);
-      if (p.position.y < sps.vars.minY) {
+      if (!p.alive || !sps.bullet.blowing) {
+          return; 
+      }
+      console.log(sps.vars.pWorld);    
+      p.position.addToRef(sps.mesh.position, sps.vars.pWorld);
+      sps.vars.minY = ARTILLERY.ground.getHeightAtCoordinates(sps.vars.pWorld.x, sps.vars.pWorld.z);
+      
+      if (sps.vars.pWorld.y < sps.vars.minY) {
+          p.alive = false;
           p.velocity.y = 0;
-          p.position.y = sps.vars.minY;
+          p.position.y = sps.vars.minY - sps.mesh.position.y;
           sps.counter ++;
-          if (sps.counter == sps.nbParticles) {
+          if (sps.counter == sps.nbParticles ) {
               sps.counter = 0;
               sps.mesh.isVisible = false;
               sps.bullet.blowing = false;
           }
       }
-      p.velocity.y -= ARTILLERY.gravity;
-      p.position.addInPlace(p.velocity);
-      p.rotation.x += p.velocity.z * p.deltaRot;
-      p.rotation.y += p.velocity.x * p.deltaRot;
-      p.rotation.z += p.velocity.y * p.deltaRot;  
+      else {
+          p.velocity.scaleInPlace(ARTILLERY.airFriction);
+          p.position.x = sps.vars.k * p.velocity.x;
+          p.position.z = sps.vars.k * p.velocity.z;
+          p.position.y = -sps.vars.k * sps.vars.k * ARTILLERY.gravity * 0.5 + sps.vars.k * p.velocity.y;
+          p.rotation.x += p.velocity.z * p.deltaRot;
+          p.rotation.y += p.velocity.x * p.deltaRot;
+          p.rotation.z += p.velocity.y * p.deltaRot;
+      }  
     };
     return sps;
 };
@@ -153,6 +168,7 @@ ARTILLERY.bulletBallistics = function(bullet, ground) {
    
         // trigger an explosion
         bullet.blowing = true;
+        bullet.dateBoom = 
         ARTILLERY.explose(bullet, y, ground.getNormalAtCoordinates(bullet.position.x, bullet.position.z));   
         
         // recycle bullet : reload the cannon
@@ -163,19 +179,30 @@ ARTILLERY.bulletBallistics = function(bullet, ground) {
     } 
 };
 
+
 ARTILLERY.explose = function(bullet, y, normal) {
-    // fragment initial size, velocity and rotation
-    var boom = bullet.boom.particles;
-    bullet.boom.mesh.isVisible = true;
-    for (var p = 0; p < bullet.boom.nbParticles; p++) {
-        boom[p].velocity.x = (0.5 - Math.random()) * 10;
-        boom[p].velocity.z = (0.5 - Math.random()) * 10;
-        boom[p].velocity.y = Math.random() * 20;
+
+    // turn the sps visible and locate it at bullet impact
+    bullet.explosion.mesh.isVisible = true;
+    bullet.explosion.mesh.position.x = bullet.position.x;
+    bullet.explosion.mesh.position.z = bullet.position.z;
+    bullet.explosion.mesh.position.y = y + 1;
+    bullet.dateBoom = Date.now();
+    // fragment initial sizes, velocities and rotations
+    var boom = bullet.explosion.particles;
+    for (var p = 0; p < bullet.explosion.nbParticles; p++) {
+        boom[p].alive = true;
+        boom[p].position.x = 0;
+        boom[p].position.y = 0;
+        boom[p].position.z = 0;
+        boom[p].velocity.x = (0.5 - Math.random()) * 3;
+        boom[p].velocity.z = (0.5 - Math.random()) * 3;
+        boom[p].velocity.y = Math.random() * 2 + 1;
         boom[p].rotation.x = 2 * Math.PI * Math.random();
         boom[p].rotation.y = 2 * Math.PI * Math.random();
         boom[p].rotation.z = 2 * Math.PI * Math.random();
-        boom[p].deltaRot = Math.random() / 100;
-        boom[p].scale.scaleInPlace(Math.random() * bullet.caliber);
+        boom[p].deltaRot = Math.random() / 10000;
+        boom[p].scale.scaleInPlace(Math.random() * bullet.caliber + bullet.caliber * .2);
     }
 };
 
@@ -295,7 +322,6 @@ ARTILLERY.scenes["level"] = function(canvas, engine) {
                 }
             } 
 
-
             cannons[c].position.subtractToRef(cannons[c].muzzle, camPos);
             camPos.multiplyInPlace(camShift);
             camPos.addInPlace(cannons[c].position);
@@ -307,7 +333,8 @@ ARTILLERY.scenes["level"] = function(canvas, engine) {
         for (var b = 0; b < bullets.length; b++) {
             var bullet = bullets[b];
             if (bullet.blowing) {
-                bullet.boom.setParticles();
+                bullet.explosion.vars.k = (Date.now() - bullet.dateBoom) / 1000;        // update bullet time delta
+                bullet.explosion.setParticles();
             } else
             if (bullet.fired) {
                 ARTILLERY.bulletBallistics(bullet, landscape.ground);
