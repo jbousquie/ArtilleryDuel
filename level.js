@@ -18,13 +18,14 @@ ARTILLERY.generateLandscape = function(groundSize, sub, scene) {
     // ground
     var ground = BABYLON.MeshBuilder.CreateGround("gd",{width: groundSize, height: groundSize, subdivisions: sub, updatable: true}, scene);
     var groundMat = new BABYLON.StandardMaterial("gm", scene);
-    //groundMat.wireframe = true;
+    groundMat.wireframe = true;
     groundMat.diffuseTexture = groundTex;
     groundMat.specularColor = BABYLON.Color3.Black();
     //groundMat.backFaceCulling = false;
     groundMat.freeze();
     ground.material = groundMat;
     
+    // populate the perlin array with perlin noise
     var perlinSize = (sub + 1) * (sub + 1);
     var perlinOptions = {octaveCount: 4, amplitude: 0.6, persistence: 0.3};
     var perlin = generatePerlinNoise(perlinSize, perlinSize, perlinOptions);
@@ -35,24 +36,16 @@ ARTILLERY.generateLandscape = function(groundSize, sub, scene) {
     var wave = perlinSize / 1.5;    // wave number
     var waveHeight = 2.5;           // wave amplitude
     var start = -Math.PI / 2;       // start angle (sin)
-    var edgeHeights = [];           // edge heights storage
-    var borderHeights = [];         // front and back border heights storage
     var perlinGround = function(positions) {
         var last = positions.length / 3 - 1;
         for (var idx = 0; idx < positions.length; idx +=3) {
             var e = idx / 3;
             var y = perlin[idx] * amp + Math.sin(idx / wave + start) * waveHeight;
             positions[idx + 1] = y
-            var mod = e % (sub + 1);
-            if (mod == 0 || mod == sub) {
-                edgeHeights.push(y);
-            }
-            if (e <= sub || e >= last - sub) {
-                borderHeights.push(y);
-            }
         }  
     };
 
+    // apply the perlin noise to the ground and update the ground altitudes
     ground.updateMeshPositions(perlinGround);
     ground.updateCoordinateHeights();
 
@@ -77,6 +70,7 @@ ARTILLERY.generateCannon = function(id, size, color, position, angle, rotY,  sce
     cannon.end = path[1];                       // cannon end point
     cannon.muzzle = BABYLON.Vector3.Zero();     // muzzzle world coordinates
     cannon.caliber = caliber;                   // cannon caliber
+    cannon.bulletColor = color;                 // cannon bullet color
     cannon.capacity = 3;                        // max load of bullets
     cannon.nextBullet = 0;                      // index of next (un-fired) bullet
     cannon.bullets = [];                        // bullet array
@@ -94,83 +88,99 @@ ARTILLERY.generateBullet = function(id, cannon, scene) {
     bullet.cannon = cannon;                 // reference to the cannon it belongs to
     bullet.fired = false;                   // if the bullet is fired
     bullet.blowing = false;                 // if the bullet is exploding
-    bullet.heating = 60;                    // how much the bullets warms the cannon when fired
+    bullet.heating = 20;                    // how much the bullets warms the cannon when fired
     bullet.speed = 30;                      // bullet speed
-    bullet.fragments = 30;                  // how many fragments when explode
+    bullet.fragments = 60;                  // how many fragments when explode
+    bullet.fragmentColor = cannon.bulletColor;
     bullet.dateFired = 0.0;                 // timestamp on fire
     bullet.dateBoom = 0.0;                  // timestamp on explode
     bullet.velocity = BABYLON.Vector3.Zero(); // initial velocity vector 
-    bullet.explosion = ARTILLERY.generateExplosion('boom-'+id.toString, bullet, scene); 
+    bullet.explosion = ARTILLERY.generateExplosion(bullet, scene); 
     cannon.bullets.push(bullet);            // load the bullet into the cannon
     return bullet;
 };
 
-ARTILLERY.generateExplosion = function(id, bullet, scene) {
-    var sps = new BABYLON.SolidParticleSystem(id, scene);
+ARTILLERY.generateExplosion = function(bullet, scene) {
+    var sps = new BABYLON.SolidParticleSystem("boom"+bullet.id, scene);
     var model = BABYLON.MeshBuilder.CreatePolyhedron('p', {}, scene);
     sps.addShape(model, bullet.fragments);
     model.dispose();
     sps.buildMesh();
-    sps.mesh.material = bullet.material;
     sps.mesh.isVisible = false;
+    // scale initially the particles to zero and initialize their color
+    for (var i = 0; i < sps.nbParticles; i++) {
+        var p = sps.particles[i];
+        p.scale.x = 0;
+        p.scale.y = 0;
+        p.scale.z = 0;
+        p.color.r = bullet.fragmentColor.r;
+        p.color.g = bullet.fragmentColor.g;
+        p.color.b = bullet.fragmentColor.b;
+        p.color.r = 1.0;
+     }
+    sps.setParticles();
     sps.computeBoundingBox = true;
     sps.bullet = bullet;                    //reference to the bullet
     
     // explosion logic
     sps.counter = 0;
     sps.vars.minY = 0.0;
-    sps.vars.k = 0.0;
+    sps.vars.t = 0.0;
     sps.vars.pWorld = BABYLON.Vector3.Zero();   // particle world position
-    sps.updateParticle = function(p) {
-      if (!p.alive || !sps.bullet.blowing) {
-          return; 
-      }
-      console.log(sps.vars.pWorld);    
-      p.position.addToRef(sps.mesh.position, sps.vars.pWorld);
-      sps.vars.minY = ARTILLERY.ground.getHeightAtCoordinates(sps.vars.pWorld.x, sps.vars.pWorld.z);
-      
-      if (sps.vars.pWorld.y < sps.vars.minY) {
-          p.alive = false;
-          p.velocity.y = 0;
-          p.position.y = sps.vars.minY - sps.mesh.position.y;
-          sps.counter ++;
-          if (sps.counter == sps.nbParticles ) {
-              sps.counter = 0;
-              sps.mesh.isVisible = false;
-              sps.bullet.blowing = false;
-          }
-      }
-      else {
-          p.velocity.scaleInPlace(ARTILLERY.airFriction);
-          p.position.x = sps.vars.k * p.velocity.x;
-          p.position.z = sps.vars.k * p.velocity.z;
-          p.position.y = -sps.vars.k * sps.vars.k * ARTILLERY.gravity * 0.5 + sps.vars.k * p.velocity.y;
-          p.rotation.x += p.velocity.z * p.deltaRot;
-          p.rotation.y += p.velocity.x * p.deltaRot;
-          p.rotation.z += p.velocity.y * p.deltaRot;
-      }  
+    sps.updateParticle = function(p) {   
+        // return cases
+        if (!p.alive || !sps.bullet.blowing) {
+            return; 
+        }
+
+        // compute ground altitude and check for collision
+        p.position.addToRef(sps.mesh.position, sps.vars.pWorld);
+        sps.vars.minY = ARTILLERY.ground.getHeightAtCoordinates(sps.vars.pWorld.x, sps.vars.pWorld.z);  
+        if (sps.vars.pWorld.y < sps.vars.minY) {
+            //p.alive = false;
+            p.velocity.y = 0;
+            p.position.y = sps.vars.minY - sps.mesh.position.y;
+            p.color.a = (p.color.a < 0) ? 0 : p.color.a - 0.05;
+            if (p.color.a == 0) {
+                p.alive = false;
+                sps.counter ++;
+            }
+            //sps.counter ++;
+            if (sps.counter == sps.nbParticles ) {
+                sps.counter = 0;
+                sps.mesh.isVisible = false;
+                sps.bullet.blowing = false;
+            }
+        }
+        else {
+            p.velocity.scaleInPlace(ARTILLERY.airFriction);
+            p.position.x = sps.vars.t * p.velocity.x;
+            p.position.z = sps.vars.t * p.velocity.z;
+            p.position.y = -sps.vars.t * sps.vars.t * ARTILLERY.gravity * 0.5 + sps.vars.t * p.velocity.y;
+            p.rotation.x += p.velocity.z * p.deltaRot;
+            p.rotation.y += p.velocity.x * p.deltaRot;
+            p.rotation.z += p.velocity.y * p.deltaRot;
+        }  
     };
+    
     return sps;
 };
 
 ARTILLERY.bulletBallistics = function(bullet, ground) {
     
     // move bullet    
-    var k = (Date.now() - bullet.dateFired) / 1000;
+    var t = (Date.now() - bullet.dateFired) / 1000;
     bullet.velocity.scaleInPlace(ARTILLERY.airFriction);
-    bullet.position.x = k * bullet.velocity.x + bullet.cannon.muzzle.x;        //  x = vx * t + x0
-    bullet.position.z = k * bullet.velocity.z + bullet.cannon.muzzle.z;        //  z = vz * t + z0
-    bullet.position.y = -k * k * ARTILLERY.gravity * 0.5 + k * bullet.velocity.y + bullet.cannon.muzzle.y;     // y = -g * t² / 2 + vy * t + y0
+    bullet.position.x = t * bullet.velocity.x + bullet.cannon.muzzle.x;        //  x = vx * t + x0
+    bullet.position.z = t * bullet.velocity.z + bullet.cannon.muzzle.z;        //  z = vz * t + z0
+    bullet.position.y = -t * t * ARTILLERY.gravity * 0.5 + t * bullet.velocity.y + bullet.cannon.muzzle.y;     // y = -g * t² / 2 + vy * t + y0
     
     // ground collision test
     var y = ground.getHeightAtCoordinates(bullet.position.x, bullet.position.z);
     if ( bullet.position.y <= y ) {
-   
         // trigger an explosion
         bullet.blowing = true;
-        bullet.dateBoom = 
-        ARTILLERY.explose(bullet, y, ground.getNormalAtCoordinates(bullet.position.x, bullet.position.z));   
-        
+        ARTILLERY.explose(bullet, y);    
         // recycle bullet : reload the cannon
         bullet.fired = false;
         bullet.position.copyFrom(bullet.cannon.muzzle);
@@ -180,14 +190,15 @@ ARTILLERY.bulletBallistics = function(bullet, ground) {
 };
 
 
-ARTILLERY.explose = function(bullet, y, normal) {
+ARTILLERY.explose = function(bullet, y) {
 
     // turn the sps visible and locate it at bullet impact
     bullet.explosion.mesh.isVisible = true;
     bullet.explosion.mesh.position.x = bullet.position.x;
     bullet.explosion.mesh.position.z = bullet.position.z;
-    bullet.explosion.mesh.position.y = y + 1;
+    bullet.explosion.mesh.position.y = y;
     bullet.dateBoom = Date.now();
+
     // fragment initial sizes, velocities and rotations
     var boom = bullet.explosion.particles;
     for (var p = 0; p < bullet.explosion.nbParticles; p++) {
@@ -195,16 +206,49 @@ ARTILLERY.explose = function(bullet, y, normal) {
         boom[p].position.x = 0;
         boom[p].position.y = 0;
         boom[p].position.z = 0;
-        boom[p].velocity.x = (0.5 - Math.random()) * 3;
-        boom[p].velocity.z = (0.5 - Math.random()) * 3;
-        boom[p].velocity.y = Math.random() * 2 + 1;
+        boom[p].velocity.x = (0.5 - Math.random()) * 4;
+        boom[p].velocity.z = (0.5 - Math.random()) * 4;
+        boom[p].velocity.y = Math.random() * 8 + 2;
         boom[p].rotation.x = 2 * Math.PI * Math.random();
         boom[p].rotation.y = 2 * Math.PI * Math.random();
         boom[p].rotation.z = 2 * Math.PI * Math.random();
         boom[p].deltaRot = Math.random() / 10000;
-        boom[p].scale.scaleInPlace(Math.random() * bullet.caliber + bullet.caliber * .2);
+        var scl = Math.random() * bullet.caliber / 2;
+        boom[p].scale.x = scl;
+        boom[p].scale.y = scl;
+        boom[p].scale.z = scl;
     }
+    
+    // dig thr ground
+    ARTILLERY.impactGround(bullet.position.x, bullet.position.z);
 };
+
+// adapted from : https://github.com/BabylonJS/Babylon.js/blob/master/src/Mesh/babylon.groundMesh.ts#L104
+ARTILLERY.impactGround = function(x, z) {
+    // set x and z in ground local system
+    var gd = ARTILLERY.ground;
+    x -= gd.position.x;
+    z -= gd.position.z;
+    var col = Math.floor((x + gd._maxX) * gd.subdivisions / gd._width);
+    var row = Math.floor(-(z + gd._maxZ) * gd.subdivisions / gd._height + gd.subdivisions);
+
+    var i = row * (gd._subdivisions + 1) + col;
+    var y1 = i * 3 + 1;
+    var y2 = (i + 1) * 3 + 1;
+    var y3 = (i + gd._subdivisions + 1) * 3 + 1;
+    var quad = gd._heightQuads[row * gd.subdivisions + col];
+    if (z >= quad.slope.x * x + quad.slope.y) {
+        y1 = (i + 1 + gd.subdivisions + 1) * 3 + 1;
+    }
+    var changeAltitude = function(positions) {
+        positions[y1] -= 0.05;
+        positions[y2] -= 0.05;
+        positions[y3] -= 0.05;
+    }
+    gd.updateMeshPositions(changeAltitude);
+    gd.updateCoordinateHeights();
+};
+
 
 // Level logic
 ARTILLERY.scenes["level"] = function(canvas, engine) {
@@ -268,7 +312,7 @@ ARTILLERY.scenes["level"] = function(canvas, engine) {
     for (var c = 0; c < cannons.length; c++) {
         var cannon = cannons[c];
         for (var b = 0; b < ammoNb; b++) {
-            var bullet = ARTILLERY.generateBullet(bNb.toString, cannon, scene);
+            var bullet = ARTILLERY.generateBullet(bNb.toString(), cannon, scene);
             bullets.push(bullet);
             bNb ++;
         }
@@ -308,14 +352,17 @@ ARTILLERY.scenes["level"] = function(canvas, engine) {
             BABYLON.Vector3.TransformCoordinatesToRef(cannons[c].end, rotMatrix, cannons[c].muzzle);
             cannons[c].muzzle.addInPlace(cannons[c].position);
             
-            if (ARTILLERY.controls[c].fire && cannons[c].temperature <= cannons[c].limitTemperature) {
-                var loadedBullet = cannons[c].bullets[cannons[c].nextBullet];
-                if (loadedBullet) {     // if the cannon has still an avalaible bullet
+            // cannon fire
+            if (ARTILLERY.controls[c].fire && cannons[c].temperature < cannons[c].limitTemperature) {
+                var loadedBullet = cannons[c].bullets[cannons[c].nextBullet]; // get the next avalaible bullet if any
+                if (loadedBullet) {     
                     loadedBullet.fired = true;
                     loadedBullet.dateFired = Date.now();
+                    // compute bullet initial velocity vector from cannon direction
                     cannons[c].muzzle.subtractToRef(cannons[c].position, vel);
                     vel.scaleInPlace(loadedBullet.speed);
                     loadedBullet.velocity.copyFrom(vel);
+                    // update cannon temperature and next bullet index
                     cannons[c].temperature += loadedBullet.heating;
                     cannons[c].nextBullet ++;
                     cannons[c].nextBullet = (cannons[c].nextBullet < cannons[c].capacity) ? cannons[c].nextBullet : -1;
@@ -333,10 +380,9 @@ ARTILLERY.scenes["level"] = function(canvas, engine) {
         for (var b = 0; b < bullets.length; b++) {
             var bullet = bullets[b];
             if (bullet.blowing) {
-                bullet.explosion.vars.k = (Date.now() - bullet.dateBoom) / 1000;        // update bullet time delta
+                bullet.explosion.vars.t = (Date.now() - bullet.dateBoom) / 1000;        // update bullet time delta
                 bullet.explosion.setParticles();
-            } else
-            if (bullet.fired) {
+            } else if (bullet.fired) {
                 ARTILLERY.bulletBallistics(bullet, landscape.ground);
             } else {
                 bullet.position.copyFrom(bullet.cannon.muzzle);
