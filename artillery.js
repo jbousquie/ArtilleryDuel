@@ -26,16 +26,16 @@ ARTILLERY.bindCannonControls = function(controls) {
     // http://www.cambiaresearch.com/articles/15/javascript-key-codes
     window.addEventListener("keydown", function(evt) {
         // cannon1
-        if (evt.keyCode === 104) { //numpad up arrow
+        if (evt.keyCode === 104 || evt.keyCode === 38) { //numpad up arrow
             controls[0].up = true;
         }
-        if (evt.keyCode === 98) { //numpad down arrow
+        if (evt.keyCode === 98 || evt.keyCode === 40) { //numpad down arrow
             controls[0].down = true;
         }
-        if (evt.keyCode === 100) { //numpad left arrow
+        if (evt.keyCode === 100 || evt.keyCode === 37) { //numpad left arrow
             controls[0].left = true;
         }
-        if (evt.keyCode === 102) { //numpad right arrow
+        if (evt.keyCode === 102 || evt.keyCode === 39) { //numpad right arrow
             controls[0].right = true;
         }
         if (evt.keyCode === 13) { //enter
@@ -60,16 +60,16 @@ ARTILLERY.bindCannonControls = function(controls) {
     });  
     window.addEventListener("keyup", function(evt) {
         // cannon1
-        if (evt.keyCode === 104) { //numpad up arrow
+        if (evt.keyCode === 104 || evt.keyCode === 38) { //numpad up arrow
             controls[0].up = false;
         }
-        if (evt.keyCode === 98) { //numpad down arrow
+        if (evt.keyCode === 98 || evt.keyCode === 40) { //numpad down arrow
             controls[0].down = false;
         }
-        if (evt.keyCode === 100) { //numpad left arrow
+        if (evt.keyCode === 100 || evt.keyCode === 37) { //numpad left arrow
             controls[0].left = false;
         }
-        if (evt.keyCode === 102) { //numpad right arrow
+        if (evt.keyCode === 102 || evt.keyCode === 39) { //numpad right arrow
             controls[0].right = false;
         }
         if (evt.keyCode === 13) { //numpad enter
